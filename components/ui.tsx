@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState, type ButtonHTMLAttributes, type ReactNode, type InputHTMLAttributes, type SelectHTMLAttributes, type TextareaHTMLAttributes } from "react";
 import { cn } from "@/lib/utils";
 import { X } from "lucide-react";
+import { useStore } from "@/lib/store";
 
 type Variant = "primary" | "outline" | "ghost" | "danger";
 export function Button({ variant = "primary", size = "md", className, ...p }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant; size?: "sm" | "md" }) {
@@ -142,9 +143,14 @@ export function Table({ head, children }: { head: string[]; children: ReactNode 
 }
 export const Td = ({ children, className }: { children: ReactNode; className?: string }) => <td className={cn("px-3 py-2 align-middle", className)}>{children}</td>;
 
-/** Simulates fetch latency so loading skeletons are exercised in the sample-data phase. */
+/** Demo mode: simulates latency so skeletons are exercised. Live mode: true until the first API load finishes. */
 export function useMockLoad(ms = 500) {
-  const [loading, setLoading] = useState(true);
-  useEffect(() => { const t = setTimeout(() => setLoading(false), ms); return () => clearTimeout(t); }, [ms]);
-  return loading;
+  const { live, loading } = useStore();
+  const [demo, setDemo] = useState(true);
+  useEffect(() => {
+    if (live) return;
+    const t = setTimeout(() => setDemo(false), ms);
+    return () => clearTimeout(t);
+  }, [ms, live]);
+  return live ? loading : demo;
 }

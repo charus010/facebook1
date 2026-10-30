@@ -1,5 +1,6 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { api, errMsg, LIVE } from "@/lib/api";
 import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { useStore } from "@/lib/store";
 import { MOCK_DAILY, MOCK_PAGE_STATS } from "@/lib/mock-data";
@@ -7,7 +8,7 @@ import { Card, PageHeader, PageSkeleton, Select, StatCard, Table, Td, useMockLoa
 import { fmt } from "@/lib/utils";
 
 const NA = "Not available";
-export default function Analytics() {
+function DemoAnalytics() {
   const loading = useMockLoad();
   const { pages, videos } = useStore();
   const [days, setDays] = useState(14);
@@ -52,4 +53,43 @@ export default function Analytics() {
       </Table>
     </>
   );
+}
+
+interface Metric { posts: number; views: number | null; comments: number | null; reactions: number | null }
+interface Summary { last_refreshed_at: string | null; total: Metric; by_page: Record<string, Metric> }
+const show = (n: number | null) => (n === null ? NA : n.toLocaleString("en-US"));
+
+function LiveAnalytics() {
+  const loading = useMockLoad();
+  const { pages } = useStore();
+  const [days, setDays] = useState(7);
+  const [data, setData] = useState<Summary | null>(null);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    setError("");
+    api<Summary>(`/api/analytics/summary?days=${days}`).then(setData).catch((e) => setError(errMsg(e)));
+  }, [days]);
+  if (loading) return <PageSkeleton />;
+  return (
+    <>
+      <PageHeader title="Analytics" subtitle={`Last refresh: ${data?.last_refreshed_at ? fmt(data.last_refreshed_at) : "never"}. Meta metrics can be delayed; “Not available” means Meta did not provide it (not zero).`}
+        actions={<Select aria-label="Date range" value={days} onChange={(e) => setDays(Number(e.target.value))}><option value={7}>Last 7 days</option><option value={14}>Last 14 days</option><option value={30}>Last 30 days</option></Select>} />
+      {error && <p role="alert" className="mb-3 text-sm text-red-600">{error}</p>}
+      {data && data.total.posts === 0 ? <p className="text-sm text-slate-500">No analytics yet. Data appears after posts are published and refreshed (Phase 4).</p> : data && (
+        <>
+          <div className="grid grid-cols-3 gap-4"><StatCard label="Views" value={show(data.total.views)} /><StatCard label="Comments" value={show(data.total.comments)} /><StatCard label="Reactions" value={show(data.total.reactions)} /></div>
+          <h2 className="mb-2 mt-6 font-semibold">Page comparison</h2>
+          <Table head={["Page", "Posts", "Views", "Comments", "Reactions"]}>
+            {Object.entries(data.by_page).map(([id, m]) => (
+              <tr key={id}><Td>{pages.find((p) => p.id === id)?.name ?? id}</Td><Td>{m.posts}</Td><Td>{show(m.views)}</Td><Td>{show(m.comments)}</Td><Td>{show(m.reactions)}</Td></tr>
+            ))}
+          </Table>
+        </>
+      )}
+    </>
+  );
+}
+
+export default function Analytics() {
+  return LIVE ? <LiveAnalytics /> : <DemoAnalytics />;
 }

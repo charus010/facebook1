@@ -5,11 +5,11 @@ import { fmt } from "@/lib/utils";
 
 export default function HistoryPage() {
   const loading = useMockLoad();
-  const { history, pages, videos } = useStore();
+  const { history, pages, videos, live } = useStore();
   if (loading) return <PageSkeleton />;
   return (
     <>
-      <PageHeader title="Posting History" subtitle="Sample records. Real post IDs and links appear after Phase 4." />
+      <PageHeader title="Posting History" subtitle={live ? "Real post IDs and links appear here after publishing (Phase 4)." : "Sample records. Real post IDs and links appear after Phase 4."} />
       {history.length === 0 ? <EmptyState title="No history yet" hint="Published posts will be listed here." /> : (
         <Table head={["Time", "Page", "Video", "Status", "Post ID", "Link"]}>
           {history.map((h) => (

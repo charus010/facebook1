@@ -1,33 +1,30 @@
 "use client";
 import { useState } from "react";
-import { toast } from "sonner";
 import { useStore } from "@/lib/store";
+import { attempt } from "@/lib/api";
 import type { FbPage } from "@/lib/types";
 import { Badge, Button, EmptyState, Field, Input, Modal, PageHeader, PageSkeleton, StatusBadge, Table, Td, useMockLoad } from "@/components/ui";
 import { fmt } from "@/lib/utils";
 
 export default function PagesView() {
   const loading = useMockLoad();
-  const { pages, setPages, accounts } = useStore();
+  const { pages, accounts, actions, live } = useStore();
   const [detail, setDetail] = useState<FbPage | null>(null);
   const [edit, setEdit] = useState<FbPage | null>(null);
   const [limit, setLimit] = useState("");
   const [err, setErr] = useState("");
 
   if (loading) return <PageSkeleton />;
-  const patch = (id: string, p: Partial<FbPage>) => setPages((x) => x.map((i) => (i.id === id ? { ...i, ...p } : i)));
 
-  function save() {
+  async function save() {
     const n = Number(limit);
     if (!Number.isInteger(n) || n < 1 || n > 50) { setErr("Enter a whole number from 1 to 50."); return; }
-    patch(edit!.id, { dailyLimit: n });
-    toast.success("Settings saved (sample).");
-    setEdit(null); setErr("");
+    if (await attempt(() => actions.updatePageLimit(edit!.id, n), "Settings saved.")) { setEdit(null); setErr(""); }
   }
 
   return (
     <>
-      <PageHeader title="Facebook Pages" subtitle="Pages under authorized accounts (sample data)" />
+      <PageHeader title="Facebook Pages" subtitle={live ? "Pages under authorized accounts. New pages start paused." : "Pages under authorized accounts (sample data)"} />
       {pages.length === 0 ? <EmptyState title="No pages" hint="Connect an account to discover pages." /> : (
         <Table head={["Page", "Account", "Status", "Automation", "Today / Limit", "Last success", "Last error", "Actions"]}>
           {pages.map((p) => (
@@ -43,8 +40,11 @@ export default function PagesView() {
                 <div className="flex flex-wrap gap-1">
                   <Button size="sm" variant="outline" onClick={() => setDetail(p)}>Details</Button>
                   <Button size="sm" variant="outline" onClick={() => { setEdit(p); setLimit(String(p.dailyLimit)); setErr(""); }}>Edit</Button>
-                  <Button size="sm" variant="outline" disabled={p.status !== "connected"} onClick={() => { patch(p.id, { enabled: !p.enabled }); toast.success(p.enabled ? "Page paused." : "Page resumed."); }}>{p.enabled ? "Pause" : "Resume"}</Button>
-                  {p.status !== "connected" && <Button size="sm" onClick={() => { patch(p.id, { status: "connected", lastError: null }); toast.success("Marked reconnected (sample only)."); }}>Reconnect</Button>}
+                  <Button size="sm" variant="outline" disabled={p.status !== "connected" && !p.enabled}
+                    onClick={() => attempt(() => actions.togglePage(p.id), p.enabled ? "Page paused." : "Page resumed.")}>{p.enabled ? "Pause" : "Resume"}</Button>
+                  {p.status !== "connected" && (live
+                    ? <Button size="sm" disabled title="Meta login arrives in Phase 3">Reconnect</Button>
+                    : <Button size="sm" onClick={() => attempt(() => actions.reconnectPage(p.id), "Marked reconnected (sample only).")}>Reconnect</Button>)}
                 </div>
               </Td>
             </tr>

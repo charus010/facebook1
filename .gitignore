@@ -1,6 +1,8 @@
+node_modules
+.next
+out
 .env
-__pycache__/
-*.pyc
-.pytest_cache/
-*.db
-.venv/
+.env*.local
+.vercel
+*.tsbuildinfo
+.DS_Store

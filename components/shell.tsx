@@ -5,6 +5,7 @@ import { useState, type ReactNode } from "react";
 import { useTheme } from "next-themes";
 import { LayoutDashboard, Users, Flag, Film, Type, ListTodo, History, BarChart3, AlertTriangle, Settings, Menu, Sun, Moon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useStore } from "@/lib/store";
 
 const NAV = [
   { href: "/", label: "Overview", icon: LayoutDashboard },
@@ -23,6 +24,7 @@ export function Shell({ children }: { children: ReactNode }) {
   const path = usePathname();
   const [open, setOpen] = useState(false);
   const { resolvedTheme, setTheme } = useTheme();
+  const { live, loadError, refresh, logout } = useStore();
   return (
     <div className="min-h-screen lg:flex">
       <aside className={cn("fixed inset-y-0 left-0 z-40 w-60 border-r border-slate-200 bg-white p-3 transition-transform dark:border-slate-800 dark:bg-slate-900 lg:static lg:translate-x-0", open ? "translate-x-0" : "-translate-x-full")}>
@@ -43,12 +45,25 @@ export function Shell({ children }: { children: ReactNode }) {
       <div className="min-w-0 flex-1">
         <header className="sticky top-0 z-20 flex items-center justify-between border-b border-slate-200 bg-white/90 px-4 py-2 backdrop-blur dark:border-slate-800 dark:bg-slate-900/90">
           <button className="rounded p-2 hover:bg-slate-100 dark:hover:bg-slate-800 lg:hidden" aria-label="Open navigation" onClick={() => setOpen(true)}><Menu size={20} /></button>
-          <span className="rounded bg-amber-100 px-2 py-1 text-xs font-medium text-amber-900 dark:bg-amber-900/40 dark:text-amber-200">SAMPLE DATA — not real Facebook data. Publishing disabled.</span>
+          {live
+            ? <span className="rounded bg-green-100 px-2 py-1 text-xs font-medium text-green-900 dark:bg-green-900/40 dark:text-green-200">LIVE database · Facebook publishing not enabled yet</span>
+            : <span className="rounded bg-amber-100 px-2 py-1 text-xs font-medium text-amber-900 dark:bg-amber-900/40 dark:text-amber-200">SAMPLE DATA — not real Facebook data. Publishing disabled.</span>}
+          <div className="flex items-center gap-1">
+          {live && <button className="rounded px-2 py-1 text-xs hover:bg-slate-100 dark:hover:bg-slate-800" onClick={logout}>Log out</button>}
           <button className="rounded p-2 hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Toggle dark mode" onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}>
             <Sun size={18} className="hidden dark:block" /><Moon size={18} className="dark:hidden" />
           </button>
+          </div>
         </header>
-        <main className="p-4 md:p-6">{children}</main>
+        <main className="p-4 md:p-6">
+          {live && loadError && (
+            <div role="alert" className="mb-4 flex items-center justify-between gap-2 rounded-md bg-red-50 p-3 text-sm text-red-800 dark:bg-red-900/30 dark:text-red-200">
+              <span>Could not load data: {loadError}</span>
+              <button className="underline" onClick={() => void refresh()}>Retry</button>
+            </div>
+          )}
+          {children}
+        </main>
       </div>
     </div>
   );

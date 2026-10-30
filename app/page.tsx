@@ -8,7 +8,7 @@ import { fmt } from "@/lib/utils";
 
 export default function Overview() {
   const loading = useMockLoad();
-  const { accounts, pages, videos, jobs, history, settings } = useStore();
+  const { accounts, pages, videos, jobs, history, settings, live } = useStore();
   if (loading) return <PageSkeleton />;
   const attention = pages.filter((p) => p.status !== "connected");
   const stats: [string, number, ("red" | "amber")?][] = [
@@ -23,9 +23,10 @@ export default function Overview() {
   ];
   return (
     <>
-      <PageHeader title="Overview" subtitle={settings.schedulerPaused ? "Scheduler is PAUSED (sample)" : "Scheduler running (sample)"} />
+      <PageHeader title="Overview" subtitle={`${settings.schedulerPaused ? "Scheduler is PAUSED" : "Scheduler setting: running"}${live ? "" : " (sample)"}`} />
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">{stats.map(([l, v, t]) => <StatCard key={l} label={l} value={v} tone={t} />)}</div>
       <div className="mt-6 grid gap-4 lg:grid-cols-3">
+        {live ? <Card className="lg:col-span-2"><p className="text-sm text-slate-500">Charts will appear here once real publishing data exists (Phase 4).</p></Card> : (
         <Card className="lg:col-span-2">
           <h2 className="mb-2 font-semibold">Posts per day (sample data)</h2>
           <div className="h-64" role="img" aria-label="Bar chart of sample published and failed posts per day">
@@ -41,6 +42,7 @@ export default function Overview() {
             </ResponsiveContainer>
           </div>
         </Card>
+        )}
         <Card>
           <h2 className="mb-2 font-semibold">Pages requiring attention</h2>
           {attention.length === 0 ? <p className="text-sm text-slate-500">All pages healthy.</p> : (
@@ -53,7 +55,7 @@ export default function Overview() {
           <Link href="/pages" className="mt-3 inline-block text-sm text-blue-600 underline">Manage pages</Link>
         </Card>
       </div>
-      <h2 className="mb-2 mt-6 font-semibold">Recent publishing activity (sample)</h2>
+      <h2 className="mb-2 mt-6 font-semibold">Recent publishing activity{live ? "" : " (sample)"}</h2>
       <Table head={["Time", "Page", "Video", "Status"]}>
         {history.slice(0, 5).map((h) => (
           <tr key={h.id}>

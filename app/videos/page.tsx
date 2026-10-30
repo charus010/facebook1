@@ -2,49 +2,52 @@
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { useStore } from "@/lib/store";
+import { attempt } from "@/lib/api";
 import type { Video } from "@/lib/types";
-import { Button, ConfirmModal, EmptyState, Field, Input, Modal, PageHeader, PageSkeleton, Select, StatusBadge, useMockLoad, Card } from "@/components/ui";
+import { Button, Card, ConfirmModal, EmptyState, Field, Input, Modal, PageHeader, PageSkeleton, Select, StatusBadge, useMockLoad } from "@/components/ui";
 import { Film } from "lucide-react";
 
 const CATS = ["Travel", "Food", "Fitness", "Tech", "General"];
 
 export default function Videos() {
   const loading = useMockLoad();
-  const { videos, setVideos, history, pages, nextId } = useStore();
+  const { videos, history, pages, actions, live } = useStore();
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("all");
   const [edit, setEdit] = useState<Video | null>(null);
   const [cat, setCat] = useState("General");
   const [del, setDel] = useState<Video | null>(null);
   const [hist, setHist] = useState<Video | null>(null);
+  const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   if (loading) return <PageSkeleton />;
   const list = videos.filter((v) => v.filename.toLowerCase().includes(q.toLowerCase()) && (status === "all" || v.status === status));
 
-  function onFiles(files: FileList | null) {
-    if (!files) return;
-    const added: Video[] = [];
-    for (const f of Array.from(files)) {
-      if (!f.type.startsWith("video/")) { toast.error(`${f.name}: not a video file.`); continue; }
-      if (f.size > 2 * 1024 ** 3) { toast.error(`${f.name}: larger than 2 GB.`); continue; }
-      added.push({ id: nextId("v"), filename: f.name, sizeMb: Math.max(1, Math.round(f.size / 1024 / 1024)), status: "ready", category: "General", uploadedAt: "2026-10-30T12:00:00Z", posts: 0, views: null });
-    }
-    if (added.length) { setVideos((v) => [...added, ...v]); toast.success(`${added.length} video(s) listed. Files are NOT uploaded anywhere in Phase 1.`); }
+  async function onFiles(files: FileList | null) {
+    if (!files || files.length === 0) return;
+    setUploading(true);
+    const toastId = live ? toast.loading(`Uploading ${files.length} file(s)…`) : undefined;
+    const r = await actions.uploadVideos(Array.from(files));
+    if (toastId !== undefined) toast.dismiss(toastId);
+    setUploading(false);
+    r.errors.forEach((m) => toast.error(m));
+    if (r.added) toast.success(live ? `${r.added} video(s) uploaded.` : `${r.added} video(s) listed. Files are NOT uploaded anywhere in sample mode.`);
     if (fileRef.current) fileRef.current.value = "";
   }
 
   return (
     <>
-      <PageHeader title="Video Library" subtitle="Sample entries; real storage arrives in Phase 2/4"
-        actions={<><input ref={fileRef} type="file" accept="video/*" multiple hidden onChange={(e) => onFiles(e.target.files)} /><Button onClick={() => fileRef.current?.click()}>Select videos</Button></>} />
+      <PageHeader title="Video Library" subtitle={live ? "Files are stored in your object storage (.mp4, .mov, .m4v)" : "Sample entries — nothing is uploaded"}
+        actions={<><input ref={fileRef} type="file" accept="video/mp4,video/quicktime,video/x-m4v" multiple hidden onChange={(e) => void onFiles(e.target.files)} />
+          <Button disabled={uploading} onClick={() => fileRef.current?.click()}>{uploading ? "Uploading…" : live ? "Upload videos" : "Select videos"}</Button></>} />
       <div className="mb-4 flex flex-wrap gap-2">
         <Input aria-label="Search videos" placeholder="Search filename…" value={q} onChange={(e) => setQ(e.target.value)} className="max-w-xs" />
         <Select aria-label="Filter by status" value={status} onChange={(e) => setStatus(e.target.value)} className="max-w-[180px]">
           {["all", "ready", "uploading", "processing", "failed"].map((s) => <option key={s}>{s}</option>)}
         </Select>
       </div>
-      {list.length === 0 ? <EmptyState title="No videos found" hint="Adjust filters or select videos to add." /> : (
+      {list.length === 0 ? <EmptyState title="No videos found" hint="Adjust filters or upload videos." /> : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {list.map((v) => (
             <Card key={v.id}>
@@ -64,7 +67,7 @@ export default function Videos() {
         <div className="space-y-3">
           <Field label="Category"><Select value={cat} onChange={(e) => setCat(e.target.value)}>{CATS.map((c) => <option key={c}>{c}</option>)}</Select></Field>
           <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setEdit(null)}>Cancel</Button>
-            <Button onClick={() => { setVideos((x) => x.map((i) => i.id === edit!.id ? { ...i, category: cat } : i)); toast.success("Video updated."); setEdit(null); }}>Save</Button></div>
+            <Button onClick={async () => { if (await attempt(() => actions.setVideoCategory(edit!.id, cat), "Video updated.")) setEdit(null); }}>Save</Button></div>
         </div>
       </Modal>
       <Modal open={!!hist} onClose={() => setHist(null)} title={`Posting history — ${hist?.filename ?? ""}`}>
@@ -73,7 +76,7 @@ export default function Videos() {
         ))}
       </Modal>
       <ConfirmModal open={!!del} onClose={() => setDel(null)} title="Delete video?" confirmLabel="Delete" message={`Remove ${del?.filename} from the library?`}
-        onConfirm={() => { setVideos((x) => x.filter((i) => i.id !== del!.id)); toast.success("Video removed."); }} />
+        onConfirm={() => { void attempt(() => actions.removeVideo(del!.id), "Video removed."); }} />
     </>
   );
 }
