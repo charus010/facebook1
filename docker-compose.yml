@@ -1,0 +1,38 @@
+# Local/dev stack. For production put a reverse proxy with HTTPS (Caddy/Nginx) in front and use managed secrets.
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      retries: 10
+  redis:            # not used until Phase 4 (job queue); included so the stack is ready
+    image: redis:7
+    volumes: ["redisdata:/data"]
+  minio:            # local S3-compatible storage; create the bucket named in S3_BUCKET at http://localhost:9001
+    image: minio/minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    ports: ["9000:9000", "9001:9001"]
+    volumes: ["miniodata:/data"]
+  api:
+    build: .
+    env_file: .env
+    depends_on:
+      db: { condition: service_healthy }
+    ports: ["8000:8000"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 15s
+      retries: 5
+volumes:
+  pgdata:
+  redisdata:
+  miniodata:
