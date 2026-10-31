@@ -8,17 +8,18 @@ export const MOCK_ACCOUNTS: Account[] = [
 ];
 
 export const MOCK_PAGES: FbPage[] = [
-  { id: "p1", fbId: "1000000000001", name: "Sample Page One", accountId: "a1", status: "connected", enabled: true, dailyLimit: 3, publishedToday: 2, lastSuccess: "2026-10-30T06:00:00Z", lastError: null, timezone: "Asia/Karachi" },
-  { id: "p2", fbId: "1000000000002", name: "Sample Page Two", accountId: "a1", status: "connected", enabled: true, dailyLimit: 2, publishedToday: 2, lastSuccess: "2026-10-30T05:00:00Z", lastError: null, timezone: "Asia/Karachi" },
-  { id: "p3", fbId: "1000000000003", name: "Sample Page Three", accountId: "a2", status: "needs_reauth", enabled: false, dailyLimit: 3, publishedToday: 0, lastSuccess: "2026-10-26T09:00:00Z", lastError: "Token expired (sample error)", timezone: "UTC" },
-  { id: "p4", fbId: "1000000000004", name: "Sample Page Four", accountId: "a3", status: "needs_attention", enabled: true, dailyLimit: 4, publishedToday: 1, lastSuccess: "2026-10-29T18:00:00Z", lastError: "Missing publish permission (sample error)", timezone: "Europe/London" },
-  { id: "p5", fbId: "1000000000005", name: "Sample Page Five", accountId: "a3", status: "connected", enabled: false, dailyLimit: 2, publishedToday: 0, lastSuccess: null, lastError: null, timezone: "America/New_York" },
+  { id: "p1", fbId: "1000000000001", name: "Sample Page One", accountId: "a1", status: "connected", enabled: true, dailyLimit: 3, publishedToday: 2, lastSuccess: "2026-10-30T06:00:00Z", lastError: null, timezone: "Asia/Karachi", mediaMode: "both", imagePercent: 30 },
+  { id: "p2", fbId: "1000000000002", name: "Sample Page Two", accountId: "a1", status: "connected", enabled: true, dailyLimit: 2, publishedToday: 2, lastSuccess: "2026-10-30T05:00:00Z", lastError: null, timezone: "Asia/Karachi", mediaMode: "video", imagePercent: 30 },
+  { id: "p3", fbId: "1000000000003", name: "Sample Page Three", accountId: "a2", status: "needs_reauth", enabled: false, dailyLimit: 3, publishedToday: 0, lastSuccess: "2026-10-26T09:00:00Z", lastError: "Token expired (sample error)", timezone: "UTC", mediaMode: "video", imagePercent: 30 },
+  { id: "p4", fbId: "1000000000004", name: "Sample Page Four", accountId: "a3", status: "needs_attention", enabled: true, dailyLimit: 4, publishedToday: 1, lastSuccess: "2026-10-29T18:00:00Z", lastError: "Missing publish permission (sample error)", timezone: "Europe/London", mediaMode: "both", imagePercent: 50 },
+  { id: "p5", fbId: "1000000000005", name: "Sample Page Five", accountId: "a3", status: "connected", enabled: false, dailyLimit: 2, publishedToday: 0, lastSuccess: null, lastError: null, timezone: "America/New_York", mediaMode: "image", imagePercent: 30 },
 ];
 
 const cats = ["Travel", "Food", "Fitness", "Tech"];
-export const MOCK_VIDEOS: Video[] = Array.from({ length: 12 }, (_, i) => ({
+const BASE_VIDEOS: Video[] = Array.from({ length: 12 }, (_, i) => ({
   id: `v${i + 1}`,
   filename: `sample-video-${String(i + 1).padStart(2, "0")}.mp4`,
+  mediaType: "video" as const,
   sizeMb: 20 + ((i * 37) % 180),
   status: i === 10 ? "processing" : i === 11 ? "failed" : "ready",
   category: cats[i % 4],
@@ -26,6 +27,19 @@ export const MOCK_VIDEOS: Video[] = Array.from({ length: 12 }, (_, i) => ({
   posts: i % 5,
   views: i % 3 === 2 ? null : 800 + i * 345,
 }));
+
+const SAMPLE_IMAGES: Video[] = Array.from({ length: 4 }, (_, i) => ({
+  id: `v${13 + i}`,
+  filename: `sample-image-${String(i + 1).padStart(2, "0")}.jpg`,
+  mediaType: "image" as const,
+  sizeMb: 1 + (i % 3),
+  status: "ready" as const,
+  category: cats[i % 4],
+  uploadedAt: `2026-10-${String(22 + i).padStart(2, "0")}T10:00:00Z`,
+  posts: i % 2,
+  views: null,
+}));
+export const MOCK_VIDEOS: Video[] = [...BASE_VIDEOS, ...SAMPLE_IMAGES];
 
 export const MOCK_CAPTIONS: Caption[] = Array.from({ length: 10 }, (_, i) => ({
   id: `c${i + 1}`,

@@ -6,10 +6,10 @@ const s = (n: number | null | undefined) => (n === null || n === undefined ? "" 
 export const mapAccount = (a: any): Account => ({ id: s(a.id), name: a.name, email: a.email, status: a.status, lastSync: a.last_sync_at });
 export const mapPage = (p: any): FbPage => ({
   id: s(p.id), fbId: p.fb_page_id, name: p.name, accountId: s(p.account_id), status: p.status, enabled: p.automation_enabled,
-  dailyLimit: p.daily_limit, publishedToday: 0, lastSuccess: p.last_success_at, lastError: p.last_error, timezone: p.timezone,
+  dailyLimit: p.daily_limit, publishedToday: 0, mediaMode: p.media_mode, imagePercent: p.image_percent, lastSuccess: p.last_success_at, lastError: p.last_error, timezone: p.timezone,
 });
 export const mapVideo = (v: any): Video => ({
-  id: s(v.id), filename: v.filename, sizeMb: Math.max(1, Math.round(v.size_bytes / 1048576)), status: v.status,
+  id: s(v.id), filename: v.filename, mediaType: v.media_type, sizeMb: Math.max(1, Math.round(v.size_bytes / 1048576)), status: v.status,
   category: v.category, uploadedAt: v.created_at, posts: 0, views: null,
 });
 export const mapCaption = (c: any): Caption => ({ id: s(c.id), title: c.title, description: c.description, category: c.category });

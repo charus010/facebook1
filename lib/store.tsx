@@ -1,6 +1,6 @@
 "use client";
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
-import type { Account, Caption, ErrorLog, FbPage, HistoryItem, Job, Video } from "./types";
+import type { Account, Caption, ErrorLog, FbPage, HistoryItem, Job, MediaMode, Video } from "./types";
 import { MOCK_ACCOUNTS, MOCK_CAPTIONS, MOCK_ERRORS, MOCK_HISTORY, MOCK_JOBS, MOCK_PAGES, MOCK_VIDEOS } from "./mock-data";
 import { LIVE, api, errMsg, getToken, listAll, setToken } from "./api";
 import { mapAccount, mapCaption, mapError, mapHistory, mapJob, mapPage, mapVideo } from "./mappers";
@@ -17,7 +17,8 @@ interface Actions {
   updatePageLimit(id: string, limit: number): Promise<void>;
   togglePage(id: string): Promise<void>;
   reconnectPage(id: string): Promise<void>; // demo only
-  uploadVideos(files: File[]): Promise<{ added: number; errors: string[] }>;
+  uploadMedia(files: File[]): Promise<{ added: number; errors: string[] }>;
+  updatePageMedia(id: string, mode: MediaMode, imagePercent: number): Promise<void>;
   setVideoCategory(id: string, category: string): Promise<void>;
   removeVideo(id: string): Promise<void>;
   saveCaption(id: string | null, data: CaptionInput): Promise<void>;
@@ -41,6 +42,8 @@ interface Store {
 
 const Ctx = createContext<Store | null>(null);
 const MAX_VIDEO = 2 * 1024 ** 3;
+const MAX_IMAGE = 10 * 1024 ** 2;
+const IMAGE_TYPES = ["image/jpeg", "image/png"];
 
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [accounts, setAccounts] = useState<Account[]>(LIVE ? [] : MOCK_ACCOUNTS);
@@ -61,7 +64,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (!LIVE) return;
     try {
       const [acc, pg, vid, cap, job, his, err, set] = await Promise.all([
-        listAll("/api/accounts"), listAll("/api/pages"), listAll("/api/videos"), listAll("/api/captions"),
+        listAll("/api/accounts"), listAll("/api/pages"), listAll("/api/media"), listAll("/api/captions"),
         listAll("/api/queue"), listAll("/api/history"), listAll("/api/errors"), api<Record<string, string>>("/api/settings"),
       ]);
       const hist = his.map(mapHistory);
@@ -130,19 +133,24 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       patch(setPages, id, { enabled: !p?.enabled });
     },
     async reconnectPage(id) { patch(setPages, id, { status: "connected", lastError: null }); },
-    async uploadVideos(files) {
+    async updatePageMedia(id, mode, imagePercent) {
+      if (LIVE) return live(() => api(`/api/pages/${id}`, { method: "PATCH", body: { media_mode: mode, image_percent: imagePercent } }));
+      patch(setPages, id, { mediaMode: mode, imagePercent });
+    },
+    async uploadMedia(files) {
       let added = 0; const errs: string[] = [];
       for (const f of files) {
-        if (!f.type.startsWith("video/")) { errs.push(`${f.name}: not a video file.`); continue; }
-        if (f.size > MAX_VIDEO) { errs.push(`${f.name}: larger than 2 GB.`); continue; }
+        const kind = f.type.startsWith("video/") ? "video" : IMAGE_TYPES.includes(f.type) ? "image" : null;
+        if (!kind) { errs.push(`${f.name}: use an MP4/MOV/M4V video or a JPG/PNG image.`); continue; }
+        if (f.size > (kind === "video" ? MAX_VIDEO : MAX_IMAGE)) { errs.push(`${f.name}: larger than ${kind === "video" ? "2 GB" : "10 MB"}.`); continue; }
         try {
           if (LIVE) {
-            const r = await api("/api/videos/upload-url", { method: "POST", body: { filename: f.name, size_bytes: f.size, content_type: f.type } });
+            const r = await api("/api/media/upload-url", { method: "POST", body: { filename: f.name, size_bytes: f.size, content_type: f.type } });
             const put = await fetch(r.upload_url, { method: r.method, headers: r.headers, body: f }).catch(() => null);
             if (!put || !put.ok) throw new Error("upload to storage failed (check bucket CORS)");
-            await api(`/api/videos/${r.video.id}/complete`, { method: "POST" });
+            await api(`/api/media/${r.video.id}/complete`, { method: "POST" });
           } else {
-            setVideos((v) => [{ id: nextId("v"), filename: f.name, sizeMb: Math.max(1, Math.round(f.size / 1048576)), status: "ready", category: "General", uploadedAt: "2026-10-30T12:00:00Z", posts: 0, views: null }, ...v]);
+            setVideos((v) => [{ id: nextId("v"), filename: f.name, mediaType: kind, sizeMb: Math.max(1, Math.round(f.size / 1048576)), status: "ready", category: "General", uploadedAt: "2026-10-30T12:00:00Z", posts: 0, views: null }, ...v]);
           }
           added++;
         } catch (e) { errs.push(`${f.name}: ${errMsg(e)}`); }
@@ -151,11 +159,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       return { added, errors: errs };
     },
     async setVideoCategory(id, category) {
-      if (LIVE) return live(() => api(`/api/videos/${id}`, { method: "PATCH", body: { category } }));
+      if (LIVE) return live(() => api(`/api/media/${id}`, { method: "PATCH", body: { category } }));
       patch(setVideos, id, { category });
     },
     async removeVideo(id) {
-      if (LIVE) return live(() => api(`/api/videos/${id}`, { method: "DELETE" }));
+      if (LIVE) return live(() => api(`/api/media/${id}`, { method: "DELETE" }));
       setVideos((x) => x.filter((v) => v.id !== id));
     },
     async saveCaption(id, data) {

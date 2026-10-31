@@ -11,11 +11,11 @@ export default function Overview() {
   const { accounts, pages, videos, jobs, history, settings, live } = useStore();
   if (loading) return <PageSkeleton />;
   const attention = pages.filter((p) => p.status !== "connected");
-  const stats: [string, number, ("red" | "amber")?][] = [
+  const stats: [string, number | string, ("red" | "amber")?][] = [
     ["Connected accounts", accounts.filter((a) => a.status === "connected").length],
     ["Connected pages", pages.filter((p) => p.status === "connected").length],
     ["Active pages", pages.filter((p) => p.enabled).length],
-    ["Total videos", videos.length],
+    ["Media (videos / images)", `${videos.filter((v) => v.mediaType === "video").length} / ${videos.filter((v) => v.mediaType === "image").length}`],
     ["Posts published today", pages.reduce((s, p) => s + p.publishedToday, 0)],
     ["Scheduled posts", jobs.filter((j) => j.status === "scheduled").length],
     ["Failed posts", jobs.filter((j) => j.status === "failed").length, "red"],

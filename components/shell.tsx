@@ -11,7 +11,7 @@ const NAV = [
   { href: "/", label: "Overview", icon: LayoutDashboard },
   { href: "/accounts", label: "Accounts", icon: Users },
   { href: "/pages", label: "Facebook Pages", icon: Flag },
-  { href: "/videos", label: "Video Library", icon: Film },
+  { href: "/videos", label: "Media Library", icon: Film },
   { href: "/captions", label: "Titles & Descriptions", icon: Type },
   { href: "/queue", label: "Posting Queue", icon: ListTodo },
   { href: "/history", label: "Posting History", icon: History },

@@ -1,16 +1,18 @@
 export type AccountStatus = "connected" | "needs_reauth" | "disconnected";
 export type PageStatus = "connected" | "needs_reauth" | "needs_attention";
 export type JobStatus = "scheduled" | "running" | "failed" | "cancelled" | "published";
+export type MediaMode = "video" | "image" | "both";
 export type VideoStatus = "ready" | "uploading" | "processing" | "failed";
 
 export interface Account { id: string; name: string; email: string; status: AccountStatus; lastSync: string | null; }
 export interface FbPage {
   id: string; fbId: string; name: string; accountId: string; status: PageStatus;
   enabled: boolean; dailyLimit: number; publishedToday: number;
+  mediaMode: MediaMode; imagePercent: number;
   lastSuccess: string | null; lastError: string | null; timezone: string;
 }
 export interface Video {
-  id: string; filename: string; sizeMb: number; status: VideoStatus;
+  id: string; filename: string; mediaType: "video" | "image"; sizeMb: number; status: VideoStatus;
   category: string; uploadedAt: string; posts: number; views: number | null;
 }
 export interface Caption { id: string; title: string; description: string; category: string; }
