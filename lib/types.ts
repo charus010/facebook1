@@ -8,7 +8,7 @@ export interface Account { id: string; name: string; email: string; status: Acco
 export interface FbPage {
   id: string; fbId: string; name: string; accountId: string; status: PageStatus;
   enabled: boolean; dailyLimit: number; publishedToday: number;
-  mediaMode: MediaMode; imagePercent: number;
+  dailyVideoLimit: number; dailyImageLimit: number; mediaMode: MediaMode;
   lastSuccess: string | null; lastError: string | null; timezone: string;
 }
 export interface Video {

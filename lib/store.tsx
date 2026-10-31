@@ -14,11 +14,10 @@ interface Actions {
   addAccount(name: string, email: string): Promise<Account>;
   removeAccount(id: string): Promise<void>;
   reauthorizeAccount(id: string): Promise<void>; // demo only
-  updatePageLimit(id: string, limit: number): Promise<void>;
+  updatePageLimits(id: string, videos: number, images: number): Promise<void>;
   togglePage(id: string): Promise<void>;
   reconnectPage(id: string): Promise<void>; // demo only
   uploadMedia(files: File[]): Promise<{ added: number; errors: string[] }>;
-  updatePageMedia(id: string, mode: MediaMode, imagePercent: number): Promise<void>;
   setVideoCategory(id: string, category: string): Promise<void>;
   removeVideo(id: string): Promise<void>;
   saveCaption(id: string | null, data: CaptionInput): Promise<void>;
@@ -123,9 +122,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setAccounts((x) => x.filter((a) => a.id !== id)); setPages((x) => x.filter((p) => p.accountId !== id));
     },
     async reauthorizeAccount(id) { patch(setAccounts, id, { status: "connected", lastSync: "2026-10-30T12:00:00Z" }); },
-    async updatePageLimit(id, limit) {
-      if (LIVE) return live(() => api(`/api/pages/${id}`, { method: "PATCH", body: { daily_limit: limit } }));
-      patch(setPages, id, { dailyLimit: limit });
+    async updatePageLimits(id, videos, images) {
+      if (LIVE) return live(() => api(`/api/pages/${id}`, { method: "PATCH", body: { daily_video_limit: videos, daily_image_limit: images } }));
+      patch(setPages, id, { dailyVideoLimit: videos, dailyImageLimit: images, dailyLimit: videos + images, mediaMode: (videos && images ? "both" : videos ? "video" : "image") as MediaMode });
     },
     async togglePage(id) {
       const p = pages.find((x) => x.id === id);
@@ -133,10 +132,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       patch(setPages, id, { enabled: !p?.enabled });
     },
     async reconnectPage(id) { patch(setPages, id, { status: "connected", lastError: null }); },
-    async updatePageMedia(id, mode, imagePercent) {
-      if (LIVE) return live(() => api(`/api/pages/${id}`, { method: "PATCH", body: { media_mode: mode, image_percent: imagePercent } }));
-      patch(setPages, id, { mediaMode: mode, imagePercent });
-    },
     async uploadMedia(files) {
       let added = 0; const errs: string[] = [];
       for (const f of files) {

@@ -1,5 +1,5 @@
 // ⚠️ SAMPLE DATA ONLY — none of these values come from Facebook or Meta.
-import type { Account, FbPage, Video, Caption, Job, HistoryItem, ErrorLog, DailyStat, PageStat } from "./types";
+import type { Account, FbPage, MediaMode, Video, Caption, Job, HistoryItem, ErrorLog, DailyStat, PageStat } from "./types";
 
 export const MOCK_ACCOUNTS: Account[] = [
   { id: "a1", name: "Sample Account Alpha", email: "alpha@example.com", status: "connected", lastSync: "2026-10-30T08:10:00Z" },
@@ -7,12 +7,16 @@ export const MOCK_ACCOUNTS: Account[] = [
   { id: "a3", name: "Sample Account Gamma", email: "gamma@example.com", status: "connected", lastSync: "2026-10-30T07:45:00Z" },
 ];
 
+const plan = (v: number, i: number) => ({
+  dailyVideoLimit: v, dailyImageLimit: i, dailyLimit: v + i, mediaMode: (v && i ? "both" : v ? "video" : "image") as MediaMode,
+});
+
 export const MOCK_PAGES: FbPage[] = [
-  { id: "p1", fbId: "1000000000001", name: "Sample Page One", accountId: "a1", status: "connected", enabled: true, dailyLimit: 3, publishedToday: 2, lastSuccess: "2026-10-30T06:00:00Z", lastError: null, timezone: "Asia/Karachi", mediaMode: "both", imagePercent: 30 },
-  { id: "p2", fbId: "1000000000002", name: "Sample Page Two", accountId: "a1", status: "connected", enabled: true, dailyLimit: 2, publishedToday: 2, lastSuccess: "2026-10-30T05:00:00Z", lastError: null, timezone: "Asia/Karachi", mediaMode: "video", imagePercent: 30 },
-  { id: "p3", fbId: "1000000000003", name: "Sample Page Three", accountId: "a2", status: "needs_reauth", enabled: false, dailyLimit: 3, publishedToday: 0, lastSuccess: "2026-10-26T09:00:00Z", lastError: "Token expired (sample error)", timezone: "UTC", mediaMode: "video", imagePercent: 30 },
-  { id: "p4", fbId: "1000000000004", name: "Sample Page Four", accountId: "a3", status: "needs_attention", enabled: true, dailyLimit: 4, publishedToday: 1, lastSuccess: "2026-10-29T18:00:00Z", lastError: "Missing publish permission (sample error)", timezone: "Europe/London", mediaMode: "both", imagePercent: 50 },
-  { id: "p5", fbId: "1000000000005", name: "Sample Page Five", accountId: "a3", status: "connected", enabled: false, dailyLimit: 2, publishedToday: 0, lastSuccess: null, lastError: null, timezone: "America/New_York", mediaMode: "image", imagePercent: 30 },
+  { id: "p1", fbId: "1000000000001", name: "Sample Page One", accountId: "a1", status: "connected", enabled: true, ...plan(2, 1), publishedToday: 2, lastSuccess: "2026-10-30T06:00:00Z", lastError: null, timezone: "Asia/Karachi" },
+  { id: "p2", fbId: "1000000000002", name: "Sample Page Two", accountId: "a1", status: "connected", enabled: true, ...plan(2, 0), publishedToday: 2, lastSuccess: "2026-10-30T05:00:00Z", lastError: null, timezone: "Asia/Karachi" },
+  { id: "p3", fbId: "1000000000003", name: "Sample Page Three", accountId: "a2", status: "needs_reauth", enabled: false, ...plan(3, 0), publishedToday: 0, lastSuccess: "2026-10-26T09:00:00Z", lastError: "Token expired (sample error)", timezone: "UTC" },
+  { id: "p4", fbId: "1000000000004", name: "Sample Page Four", accountId: "a3", status: "needs_attention", enabled: true, ...plan(2, 2), publishedToday: 1, lastSuccess: "2026-10-29T18:00:00Z", lastError: "Missing publish permission (sample error)", timezone: "Europe/London" },
+  { id: "p5", fbId: "1000000000005", name: "Sample Page Five", accountId: "a3", status: "connected", enabled: false, ...plan(0, 2), publishedToday: 0, lastSuccess: null, lastError: null, timezone: "America/New_York" },
 ];
 
 const cats = ["Travel", "Food", "Fitness", "Tech"];

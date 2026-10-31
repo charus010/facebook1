@@ -18,7 +18,7 @@ export function DiscoverModal({ account, onClose }: { account: Account; onClose:
     const added: FbPage[] = found.filter((d) => sel.has(d.fbId) && !imported.has(d.fbId)).map((d) => ({
       id: nextId("p"), fbId: d.fbId, name: d.name, accountId: account.id,
       status: d.canPublish ? "connected" : "needs_attention",
-      enabled: false, dailyLimit: 3, publishedToday: 0, mediaMode: "video", imagePercent: 30, lastSuccess: null,
+      enabled: false, dailyLimit: 3, publishedToday: 0, dailyVideoLimit: 3, dailyImageLimit: 0, mediaMode: "video", lastSuccess: null,
       lastError: d.canPublish ? null : "Publish permission not verified (sample)", timezone: "UTC",
     }));
     setPages((x) => [...x, ...added]);
