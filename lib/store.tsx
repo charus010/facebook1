@@ -2,12 +2,14 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import type { Account, Caption, ErrorLog, FbPage, HistoryItem, Job, MediaMode, Video } from "./types";
 import { MOCK_ACCOUNTS, MOCK_CAPTIONS, MOCK_ERRORS, MOCK_HISTORY, MOCK_JOBS, MOCK_PAGES, MOCK_VIDEOS } from "./mock-data";
-import { LIVE, api, errMsg, getToken, listAll, setToken } from "./api";
+import { ApiError, LIVE, api, errMsg, getToken, listAll, setToken } from "./api";
 import { mapAccount, mapCaption, mapError, mapHistory, mapJob, mapPage, mapVideo } from "./mappers";
 
 export interface Settings { schedulerPaused: boolean; randomMode: "random" | "category"; noRepeatDays: number }
 export interface CaptionInput { title: string; description: string; category: string }
 export interface ImportSummary { valid: number; imported: number; duplicates: number; invalid: string[] }
+export interface Discovered { fb_page_id: string; name: string; can_publish: boolean; already_imported: boolean; imported_by_other_account: boolean }
+export interface SyncSummary { updated: number; lost: number; new_pages_available: number; token_expires_soon: boolean }
 type Auth = "checking" | "anon" | "authed";
 
 interface Actions {
@@ -27,6 +29,11 @@ interface Actions {
   cancelJob(id: string): Promise<void>;
   retryJob(id: string): Promise<void>;
   saveSettings(patch: Partial<Settings>): Promise<void>;
+  // Meta (live mode only)
+  connectMeta(accountId: string): Promise<void>;
+  discoverMeta(accountId: string): Promise<Discovered[]>;
+  importMeta(accountId: string, fbPageIds: string[]): Promise<{ imported: number; skipped: number; notFound: number }>;
+  syncMeta(accountId: string): Promise<SyncSummary>;
 }
 
 interface Store {
@@ -108,6 +115,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   };
 
   const live = async (fn: () => Promise<unknown>) => { await fn(); await refresh(); };
+  // When Meta access is gone the backend already flagged the account/pages; reload so the UI shows it.
+  const metaCall = async <T,>(fn: () => Promise<T>): Promise<T> => {
+    try { return await fn(); }
+    catch (e) { if (e instanceof ApiError && e.code === "ACCOUNT_NEEDS_REAUTH") await refresh(); throw e; }
+  };
   const patch = <T extends { id: string }>(set: (f: (x: T[]) => T[]) => void, id: string, p: Partial<T>) => set((x) => x.map((i) => (i.id === id ? { ...i, ...p } : i)));
 
   const actions: Actions = {
@@ -183,6 +195,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     async retryJob(id) {
       if (LIVE) return live(() => api(`/api/queue/${id}/retry`, { method: "POST" }));
       patch(setJobs, id, { status: "scheduled" });
+    },
+    async connectMeta(id) {
+      const r = await api<{ login_url: string }>(`/api/accounts/${id}/meta/connect`, { method: "POST" });
+      window.location.href = r.login_url; // browser goes to Facebook, then back to /accounts
+    },
+    async discoverMeta(id) { return (await metaCall(() => api<{ pages: Discovered[] }>(`/api/accounts/${id}/meta/pages`))).pages; },
+    async importMeta(id, ids) {
+      const r = await metaCall(() => api(`/api/accounts/${id}/meta/import`, { method: "POST", body: { fb_page_ids: ids } }));
+      await refresh();
+      return { imported: r.imported.length, skipped: r.skipped.length, notFound: r.not_found.length };
+    },
+    async syncMeta(id) {
+      try { return await metaCall(() => api<SyncSummary>(`/api/accounts/${id}/meta/sync`, { method: "POST" })); }
+      finally { await refresh(); }
     },
     async saveSettings(p) {
       if (LIVE) {

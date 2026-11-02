@@ -49,7 +49,7 @@ export default function PagesView() {
                   <Button size="sm" variant="outline" disabled={p.status !== "connected" && !p.enabled}
                     onClick={() => attempt(() => actions.togglePage(p.id), p.enabled ? "Page paused." : "Page resumed.")}>{p.enabled ? "Pause" : "Resume"}</Button>
                   {p.status !== "connected" && (live
-                    ? <Button size="sm" disabled title="Meta login arrives in Phase 3">Reconnect</Button>
+                    ? <Button size="sm" onClick={() => attempt(() => actions.connectMeta(p.accountId))}>Reconnect</Button>
                     : <Button size="sm" onClick={() => attempt(() => actions.reconnectPage(p.id), "Marked reconnected (sample only).")}>Reconnect</Button>)}
                 </div>
               </Td>
