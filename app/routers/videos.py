@@ -14,8 +14,10 @@ from app.models import ApplicationUser, PostingJob, Video
 from app.schemas import Paginated, VideoOut, VideoUpdate, VideoUploadIn, VideoUploadOut
 from app.storage import get_storage
 
-router = APIRouter(prefix="/api/videos", tags=["videos"], dependencies=[Depends(get_current_user)])
-ALLOWED_EXT = {".mp4", ".mov", ".m4v"}
+router = APIRouter(prefix="/api/media", tags=["media"], dependencies=[Depends(get_current_user)])
+VIDEO_EXT = {".mp4", ".mov", ".m4v"}
+IMAGE_EXT = {".jpg", ".jpeg", ".png"}
+IMAGE_TYPES = {"image/jpeg", "image/png"}
 
 
 def _safe_name(name: str) -> str:
@@ -23,7 +25,7 @@ def _safe_name(name: str) -> str:
 
 
 @router.get("", response_model=Paginated[VideoOut])
-def list_videos(q: str | None = None, status: str | None = None, category: str | None = None,
+def list_videos(q: str | None = None, status: str | None = None, category: str | None = None, media_type: str | None = None,
                 p: PageParams = Depends(), db: Session = Depends(get_db)):
     stmt = select(Video).order_by(Video.id.desc())
     if q:
@@ -32,6 +34,8 @@ def list_videos(q: str | None = None, status: str | None = None, category: str |
         stmt = stmt.where(Video.status == status)
     if category:
         stmt = stmt.where(Video.category == category)
+    if media_type:
+        stmt = stmt.where(Video.media_type == media_type)
     return paginate(db, stmt, p, VideoOut)
 
 
@@ -40,12 +44,18 @@ def request_upload(body: VideoUploadIn, db: Session = Depends(get_db), storage=D
                    user: ApplicationUser = Depends(get_current_user)):
     """Step 1: create the record and get a short-lived presigned URL. The browser uploads straight to object storage."""
     name = _safe_name(body.filename)
-    if os.path.splitext(name)[1].lower() not in ALLOWED_EXT or not body.content_type.startswith("video/"):
-        raise AppError(422, "UNSUPPORTED_MEDIA", "Only .mp4, .mov and .m4v video files are accepted.")
-    if body.size_bytes > get_settings().max_upload_bytes:
-        raise AppError(413, "FILE_TOO_LARGE", "File exceeds the maximum upload size.")
+    ext = os.path.splitext(name)[1].lower()
+    cfg = get_settings()
+    if ext in VIDEO_EXT and body.content_type.startswith("video/"):
+        media_type, limit = "video", cfg.max_upload_bytes
+    elif ext in IMAGE_EXT and body.content_type in IMAGE_TYPES:
+        media_type, limit = "image", cfg.max_image_bytes
+    else:
+        raise AppError(422, "UNSUPPORTED_MEDIA", "Accepted: .mp4/.mov/.m4v videos and .jpg/.jpeg/.png images.")
+    if body.size_bytes > limit:
+        raise AppError(413, "FILE_TOO_LARGE", f"A {media_type} file exceeds the maximum upload size.")
     key = f"videos/{uuid.uuid4().hex}/{name}"
-    video = Video(filename=name, object_key=key, size_bytes=body.size_bytes, content_type=body.content_type,
+    video = Video(filename=name, object_key=key, size_bytes=body.size_bytes, content_type=body.content_type, media_type=media_type,
                   status="uploading", category=body.category)
     db.add(video)
     db.flush()
@@ -88,7 +98,7 @@ def update_video(video_id: int, body: VideoUpdate, db: Session = Depends(get_db)
 def delete_video(video_id: int, db: Session = Depends(get_db), storage=Depends(get_storage), user: ApplicationUser = Depends(get_current_user)):
     video = get_or_404(db, Video, video_id, "Video")
     if db.scalar(select(func.count()).select_from(PostingJob).where(PostingJob.video_id == video_id)):
-        raise AppError(409, "VIDEO_IN_USE", "This video is used by posting jobs and cannot be deleted.")
+        raise AppError(409, "VIDEO_IN_USE", "This media item is used by posting jobs and cannot be deleted.")
     key = video.object_key
     db.delete(video)
     audit(db, user, "delete", "video", video_id)

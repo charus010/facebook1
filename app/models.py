@@ -48,17 +48,25 @@ class MetaAuthorization(Base):
 
 class FacebookPage(Base):
     __tablename__ = "facebook_pages"
-    __table_args__ = (CheckConstraint("daily_limit BETWEEN 1 AND 50", name="ck_page_daily_limit"),)
+    __table_args__ = (
+        CheckConstraint("daily_limit BETWEEN 1 AND 50", name="ck_page_daily_limit"),
+        CheckConstraint("daily_video_limit BETWEEN 0 AND 50", name="ck_page_daily_video_limit"),
+        CheckConstraint("daily_image_limit BETWEEN 0 AND 50", name="ck_page_daily_image_limit"),
+    )
     id: Mapped[int] = mapped_column(primary_key=True)
     account_id: Mapped[int] = mapped_column(ForeignKey("connected_accounts.id", ondelete="CASCADE"), index=True)
     fb_page_id: Mapped[str] = mapped_column(String(64), unique=True)
     name: Mapped[str] = mapped_column(String(200))
     status: Mapped[str] = mapped_column(String(20), default="needs_attention", index=True)
     automation_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
-    daily_limit: Mapped[int] = mapped_column(Integer, default=3)
+    daily_limit: Mapped[int] = mapped_column(Integer, default=3)  # always = daily_video_limit + daily_image_limit (server-maintained)
+    daily_video_limit: Mapped[int] = mapped_column(Integer, default=3, server_default="3")
+    daily_image_limit: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     timezone: Mapped[str] = mapped_column(String(64), default="UTC")
+    media_mode: Mapped[str] = mapped_column(String(10), default="video", server_default="video")  # derived: video | image | both
     last_success_at: Mapped[datetime | None] = _ts(nullable=True)
     last_error: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    page_token_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)  # Fernet-encrypted; never returned by any schema
     created_at: Mapped[datetime] = _ts(default=utcnow)
 
 
@@ -69,6 +77,7 @@ class Video(Base):
     object_key: Mapped[str] = mapped_column(String(512), unique=True)
     size_bytes: Mapped[int] = mapped_column(BigInteger)
     content_type: Mapped[str] = mapped_column(String(100))
+    media_type: Mapped[str] = mapped_column(String(10), default="video", server_default="video", index=True)  # video | image
     status: Mapped[str] = mapped_column(String(20), default="uploading", index=True)
     category: Mapped[str] = mapped_column(String(50), default="General", index=True)
     created_at: Mapped[datetime] = _ts(default=utcnow)

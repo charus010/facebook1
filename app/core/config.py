@@ -20,7 +20,22 @@ class Settings(BaseSettings):
     s3_bucket: str = "videos"
     s3_access_key: str = ""
     s3_secret_key: str = ""
-    max_upload_bytes: int = 2 * 1024**3
+    # --- Meta (Phase 3). "mock" needs no Facebook credentials (tests/demo); "live" talks to Meta's Graph API.
+    meta_mode: str = "mock"
+    meta_app_id: str = ""
+    meta_app_secret: str = ""
+    meta_redirect_uri: str = "http://localhost:8000/api/meta/callback"  # must match the app's Valid OAuth Redirect URIs exactly
+    meta_api_version: str = "v25.0"  # Graph API version used in every URL; change it here only
+    # Minimum scopes for connecting + listing + publishing posts. Add publish_video / read_insights when Phase 4 needs them
+    # AND they appear in your app's use case.
+    meta_scopes: str = "pages_show_list,pages_read_engagement,pages_manage_posts"
+    frontend_url: str = "http://localhost:3000"  # where the browser returns after Facebook login
+    max_upload_bytes: int = 2 * 1024**3  # videos
+    max_image_bytes: int = 10 * 1024**2  # images; verify Meta's current photo limits before Phase 4
+
+    @property
+    def meta_scope_list(self) -> list[str]:
+        return [s.strip() for s in self.meta_scopes.split(",") if s.strip()]
 
     @property
     def cors_list(self) -> list[str]:

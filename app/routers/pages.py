@@ -8,6 +8,13 @@ from app.errors import AppError
 from app.models import ApplicationUser, ConnectedAccount, FacebookPage
 from app.schemas import Paginated, PageCreate, PageOut, PageUpdate
 
+def _apply_limits(page: FacebookPage) -> None:
+    """daily_limit and media_mode are derived from the per-type daily counts."""
+    v, i = page.daily_video_limit, page.daily_image_limit
+    page.daily_limit = v + i
+    page.media_mode = "both" if v and i else "video" if v else "image"
+
+
 router = APIRouter(prefix="/api/pages", tags=["pages"], dependencies=[Depends(get_current_user)])
 
 
@@ -31,6 +38,7 @@ def create_page(body: PageCreate, db: Session = Depends(get_db), user: Applicati
     get_or_404(db, ConnectedAccount, body.account_id, "Account")
     # New pages start PAUSED and "needs_attention" until Phase 3 verifies publish permission with Meta.
     page = FacebookPage(**body.model_dump(), status="needs_attention", automation_enabled=False)
+    _apply_limits(page)
     db.add(page)
     db.flush()
     audit(db, user, "create", "page", page.id)
@@ -51,6 +59,11 @@ def update_page(page_id: int, body: PageUpdate, db: Session = Depends(get_db), u
         require_demo_for_status_change()
     for k, v in data.items():
         setattr(page, k, v)
+    if "daily_video_limit" in data or "daily_image_limit" in data:
+        if not 1 <= page.daily_video_limit + page.daily_image_limit <= 50:
+            db.rollback()
+            raise AppError(422, "INVALID_DAILY_LIMITS", "Videos + images per day must total 1 to 50.")
+        _apply_limits(page)
     if page.status != "connected":
         page.automation_enabled = False
     audit(db, user, "update", "page", page.id)

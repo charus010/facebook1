@@ -29,8 +29,8 @@ def test_login_is_rate_limited_after_repeated_failures(client):
     assert r.status_code == 429
 
 
-@pytest.mark.parametrize("path", ["/api/accounts", "/api/pages", "/api/videos", "/api/captions", "/api/schedules",
-                                  "/api/queue", "/api/history", "/api/analytics/summary", "/api/errors", "/api/settings"])
+@pytest.mark.parametrize("path", ["/api/accounts", "/api/pages", "/api/media", "/api/captions", "/api/schedules",
+                                  "/api/queue", "/api/history", "/api/analytics/summary", "/api/errors", "/api/settings", "/api/meta/status"])
 def test_private_endpoints_require_token(client, path):
     assert client.get(path).status_code == 401
     assert client.get(path, headers={"Authorization": "Bearer garbage"}).status_code == 401

@@ -17,7 +17,7 @@ def make_page(client, auth, account_id, fb="111"):
 
 
 def make_video(client, auth, storage):
-    r = client.post("/api/videos/upload-url", json={"filename": "clip.mp4", "size_bytes": 1000, "content_type": "video/mp4"}, headers=auth)
+    r = client.post("/api/media/upload-url", json={"filename": "clip.mp4", "size_bytes": 1000, "content_type": "video/mp4"}, headers=auth)
     assert r.status_code == 201
     vid = r.json()["video"]
     return vid
@@ -47,7 +47,7 @@ def test_new_pages_start_paused_and_cannot_resume_until_connected(client, auth):
 
 def test_page_validation_and_duplicates(client, auth):
     acc = make_account(client, auth)
-    bad = {"account_id": acc["id"], "fb_page_id": "1", "name": "P", "daily_limit": 99}
+    bad = {"account_id": acc["id"], "fb_page_id": "1", "name": "P", "daily_video_limit": 99}
     assert client.post("/api/pages", json=bad, headers=auth).status_code == 422
     bad_tz = {"account_id": acc["id"], "fb_page_id": "2", "name": "P", "timezone": "Mars/Base"}
     assert client.post("/api/pages", json=bad_tz, headers=auth).status_code == 422
@@ -65,16 +65,16 @@ def test_production_mode_blocks_manual_status_changes(client, auth, monkeypatch)
 
 
 def test_video_upload_flow_and_validation(client, auth, storage):
-    bad = client.post("/api/videos/upload-url", json={"filename": "x.exe", "size_bytes": 10, "content_type": "video/mp4"}, headers=auth)
+    bad = client.post("/api/media/upload-url", json={"filename": "x.exe", "size_bytes": 10, "content_type": "video/mp4"}, headers=auth)
     assert bad.status_code == 422
-    r = client.post("/api/videos/upload-url", json={"filename": "../../evil name.mp4", "size_bytes": 1000, "content_type": "video/mp4"}, headers=auth).json()
+    r = client.post("/api/media/upload-url", json={"filename": "../../evil name.mp4", "size_bytes": 1000, "content_type": "video/mp4"}, headers=auth).json()
     video = r["video"]
     assert ".." not in video["filename"] and "/" not in video["filename"]
     assert r["upload_url"].startswith("https://storage.invalid/videos/")
-    assert client.post(f"/api/videos/{video['id']}/complete", headers=auth).status_code == 409  # not uploaded yet
+    assert client.post(f"/api/media/{video['id']}/complete", headers=auth).status_code == 409  # not uploaded yet
     key = r["upload_url"].replace("https://storage.invalid/", "")
     storage.objects[key] = 1234  # simulate the browser finishing the direct upload
-    done = client.post(f"/api/videos/{video['id']}/complete", headers=auth)
+    done = client.post(f"/api/media/{video['id']}/complete", headers=auth)
     assert done.status_code == 200 and done.json()["status"] == "ready" and done.json()["size_bytes"] == 1234
 
 
@@ -126,7 +126,7 @@ def test_queue_duplicate_prevention_cancel_and_retry(client, auth, storage, db_s
     row.status = "failed"
     db_session.commit()
     assert client.post(f"/api/queue/{jid}/retry", headers=auth).json()["status"] == "scheduled"
-    assert client.delete(f"/api/videos/{video['id']}", headers=auth).status_code == 409  # in use
+    assert client.delete(f"/api/media/{video['id']}", headers=auth).status_code == 409  # in use
 
 
 def test_settings_validation(client, auth):
@@ -166,3 +166,64 @@ def test_meta_token_is_encrypted_and_never_returned(client, auth, db_session):
     for path in (f"/api/accounts/{acc['id']}", "/api/accounts", "/api/pages"):
         assert secret not in client.get(path, headers=auth).text
         assert "token" not in client.get(path, headers=auth).text.lower()
+
+
+def _ready_media(client, auth, storage, filename, content_type, size=1000):
+    r = client.post("/api/media/upload-url", json={"filename": filename, "size_bytes": size, "content_type": content_type}, headers=auth)
+    assert r.status_code == 201, r.text
+    item = r.json()["video"]
+    storage.objects[r.json()["upload_url"].replace("https://storage.invalid/", "")] = size
+    assert client.post(f"/api/media/{item['id']}/complete", headers=auth).status_code == 200
+    return item
+
+
+def test_images_are_accepted_with_their_own_rules(client, auth, storage):
+    img = _ready_media(client, auth, storage, "photo.JPG", "image/jpeg")
+    assert img["media_type"] == "image"
+    vid = _ready_media(client, auth, storage, "clip.mp4", "video/mp4")
+    assert vid["media_type"] == "video"
+    only_images = client.get("/api/media?media_type=image", headers=auth).json()
+    assert only_images["total"] == 1 and only_images["items"][0]["filename"].lower() == "photo.jpg"
+    bad = [("a.png", "video/mp4"), ("a.mp4", "image/jpeg"), ("a.gif", "image/gif"), ("a.exe", "image/png")]
+    for name, ctype in bad:
+        r = client.post("/api/media/upload-url", json={"filename": name, "size_bytes": 10, "content_type": ctype}, headers=auth)
+        assert r.status_code == 422, (name, ctype)
+    big = client.post("/api/media/upload-url", json={"filename": "huge.png", "size_bytes": 11 * 1024 * 1024, "content_type": "image/png"}, headers=auth)
+    assert big.status_code == 413
+
+
+def test_daily_plan_derives_limits_and_mode(client, auth, storage):
+    acc = make_account(client, auth)
+    base = {"account_id": acc["id"], "fb_page_id": "900", "name": "Mixed"}
+    assert client.post("/api/pages", json={**base, "daily_video_limit": 0, "daily_image_limit": 0}, headers=auth).status_code == 422
+    assert client.post("/api/pages", json={**base, "daily_image_limit": 51}, headers=auth).status_code == 422
+    page = client.post("/api/pages", json={**base, "daily_video_limit": 2, "daily_image_limit": 0}, headers=auth).json()
+    assert page["daily_limit"] == 2 and page["media_mode"] == "video"
+    img = _ready_media(client, auth, storage, "pic.png", "image/png")
+    job = {"page_id": page["id"], "video_id": img["id"], "scheduled_at": "2031-01-01T09:00:00+00:00"}
+    r = client.post("/api/queue", json=job, headers=auth)
+    assert r.status_code == 409 and r.json()["error"]["code"] == "MEDIA_TYPE_NOT_ALLOWED"
+    upd = client.patch(f"/api/pages/{page['id']}", json={"daily_image_limit": 3}, headers=auth).json()
+    assert upd["media_mode"] == "both" and upd["daily_limit"] == 5
+    assert client.post("/api/queue", json=job, headers=auth).status_code == 201
+    too_many = client.patch(f"/api/pages/{page['id']}", json={"daily_video_limit": 40, "daily_image_limit": 40}, headers=auth)
+    assert too_many.status_code == 422
+    assert client.get(f"/api/pages/{page['id']}", headers=auth).json()["daily_limit"] == 5  # unchanged
+
+
+def test_daily_limit_is_enforced_per_type_and_in_page_timezone(client, auth, storage):
+    acc = make_account(client, auth)
+    page = client.post("/api/pages", json={"account_id": acc["id"], "fb_page_id": "901", "name": "Karachi", "timezone": "Asia/Karachi",
+                                           "daily_video_limit": 1, "daily_image_limit": 1}, headers=auth).json()
+    v1 = _ready_media(client, auth, storage, "a.mp4", "video/mp4")
+    v2 = _ready_media(client, auth, storage, "b.mp4", "video/mp4")
+    im = _ready_media(client, auth, storage, "p.png", "image/png")
+
+    def job(media, when):
+        return client.post("/api/queue", json={"page_id": page["id"], "video_id": media["id"], "scheduled_at": when}, headers=auth)
+
+    assert job(v1, "2031-03-01T10:00:00+00:00").status_code == 201
+    second = job(v2, "2031-03-01T12:00:00+00:00")                 # same local day, 2nd video
+    assert second.status_code == 409 and second.json()["error"]["code"] == "DAILY_LIMIT_REACHED"
+    assert job(im, "2031-03-01T11:00:00+00:00").status_code == 201  # image has its own allowance
+    assert job(v2, "2031-03-01T20:00:00+00:00").status_code == 201  # 20:00Z is already 01:00 next day in Karachi

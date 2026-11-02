@@ -12,10 +12,18 @@ from app.core.security import hash_password
 from app.db import SessionLocal
 from app.errors import install_handlers
 from app.models import ApplicationUser
-from app.routers import accounts, analytics, auth, captions, errors_log, history, jobs, pages, schedules, settings, videos
+from app.routers import accounts, analytics, auth, captions, errors_log, history, jobs, meta, pages, schedules, settings, videos
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 log = logging.getLogger("app")
+
+
+def assert_safe_config() -> None:
+    s = get_settings()
+    if s.app_mode == "production" and s.meta_mode != "live":
+        raise RuntimeError("APP_MODE=production requires META_MODE=live (mock mode must never run in production).")
+    if s.meta_mode == "live" and not (s.meta_app_id and s.meta_app_secret):
+        raise RuntimeError("META_MODE=live requires META_APP_ID and META_APP_SECRET.")
 
 
 def bootstrap_admin() -> None:
@@ -32,6 +40,7 @@ def bootstrap_admin() -> None:
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    assert_safe_config()
     bootstrap_admin()
     yield
 
@@ -50,7 +59,8 @@ async def request_log(request: Request, call_next):
     return response
 
 
-for r in (auth, accounts, pages, videos, captions, schedules, jobs, history, analytics, errors_log, settings):
+app.include_router(meta.public_router)
+for r in (auth, accounts, meta, pages, videos, captions, schedules, jobs, history, analytics, errors_log, settings):
     app.include_router(r.router)
 
 

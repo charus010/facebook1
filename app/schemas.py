@@ -3,11 +3,12 @@ from datetime import datetime
 from typing import Generic, Literal, TypeVar
 from zoneinfo import ZoneInfo
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
 
 T = TypeVar("T")
 AccountStatus = Literal["connected", "needs_reauth", "disconnected"]
 PageStatus = Literal["connected", "needs_reauth", "needs_attention"]
+MediaMode = Literal["video", "image", "both"]
 
 
 class ORM(BaseModel):
@@ -72,8 +73,15 @@ class PageCreate(BaseModel):
     account_id: int
     fb_page_id: str = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_\-]+$")
     name: str = Field(min_length=1, max_length=200)
-    daily_limit: int = Field(3, ge=1, le=50)
+    daily_video_limit: int = Field(3, ge=0, le=50)
+    daily_image_limit: int = Field(0, ge=0, le=50)
     timezone: str = "UTC"
+
+    @model_validator(mode="after")
+    def _total(self):
+        if not 1 <= self.daily_video_limit + self.daily_image_limit <= 50:
+            raise ValueError("Videos + images per day must total 1 to 50.")
+        return self
 
     @field_validator("timezone")
     @classmethod
@@ -83,7 +91,8 @@ class PageCreate(BaseModel):
 
 class PageUpdate(BaseModel):
     name: str | None = Field(None, min_length=1, max_length=200)
-    daily_limit: int | None = Field(None, ge=1, le=50)
+    daily_video_limit: int | None = Field(None, ge=0, le=50)
+    daily_image_limit: int | None = Field(None, ge=0, le=50)
     timezone: str | None = None
     status: PageStatus | None = None
 
@@ -101,7 +110,10 @@ class PageOut(ORM):
     status: str
     automation_enabled: bool
     daily_limit: int
+    daily_video_limit: int
+    daily_image_limit: int
     timezone: str
+    media_mode: str
     last_success_at: datetime | None
     last_error: str | None
     created_at: datetime
@@ -125,6 +137,7 @@ class VideoOut(ORM):
     filename: str
     size_bytes: int
     content_type: str
+    media_type: str
     status: str
     category: str
     created_at: datetime

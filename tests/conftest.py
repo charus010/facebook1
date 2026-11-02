@@ -70,3 +70,11 @@ def auth(client):
     r = client.post("/api/auth/login", json={"email": "admin@example.com", "password": "correct-horse-battery"})
     assert r.status_code == 200
     return {"Authorization": f"Bearer {r.json()['access_token']}"}
+
+
+@pytest.fixture()
+def meta(client):
+    from app.meta.client import MockMetaClient, get_meta_client
+    m = MockMetaClient()
+    app.dependency_overrides[get_meta_client] = lambda: m
+    return m
